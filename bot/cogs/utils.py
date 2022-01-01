@@ -16,6 +16,7 @@ class Utils(commands.Cog):
 
         self.isSending = False
         self.tickers = []
+        self.bought = []
 
     @commands.command(name="ping")
     async def ping(self, ctx):
@@ -36,11 +37,12 @@ class Utils(commands.Cog):
             self.isSending = not self.isSending
             await ctx.send("alert is on: " + str(self.isSending))
             while self.isSending:
-                hour = 2 < dt.datetime.now().hour < 8 
-                if dt.datetime.now().minute % 1 == 0 and dt.datetime.now().second < 1:
+                now = dt.datetime.now()
+                hour = 2 < now.hour < 8 
+                if now.minute % 1 == 0 and now.second < 1:
                     # RUN THE SCRIPT HERE
                     # https://stackoverflow.com/questions/53486744/making-async-for-loops-in-python
-                    looper = [getAndProcessHistoryData15m(ticker, ctx) for ticker in self.tickers]
+                    looper = [getAndProcessHistoryData(self.bought, ticker, ctx) for ticker in self.tickers]
                     await asyncio.gather(*looper)
                 else: await asyncio.sleep(1)
         else:
@@ -51,11 +53,29 @@ class Utils(commands.Cog):
         """set ticker watchlist"""
         msg = msg.strip().upper()
         try:
+            if msg in self.tickers:
+                await ctx.send(f"{msg} is already in watchlist")
+                raise Exception
+
             self.tickers.append(msg)
             await ctx.send(f"{msg} added to watchlist")
         except:
             await ctx.send(f"{msg} failed adding to watchlist")
-    
+
+    @commands.command(name="ab")
+    async def addBought(self, ctx, msg):
+        """set bought ticker"""
+        msg = msg.strip().upper()
+        try:
+            if msg in self.bought:
+                await ctx.send(f"{msg} is already in bought watchlist")
+                raise Exception
+
+            self.bought.append(msg)
+            await ctx.send(f"{msg} added to bought watchlist")
+        except:
+            await ctx.send(f"{msg} failed adding to bought watchlist")
+    ##########################################################################################
     @commands.command(name="r")
     async def rem(self, ctx, msg):
         """delete ticker from watchlist"""
@@ -66,11 +86,25 @@ class Utils(commands.Cog):
         except:
             await ctx.send(f"{msg} doesn't exist in watchlist")
 
+    @commands.command(name="rb")
+    async def remBought(self, ctx, msg):
+        """delete ticker from watchlist"""
+        msg = msg.strip().upper()
+        try:
+            self.bought.remove(msg)
+            await ctx.send(f"{msg} removed from bought watchlist")            
+        except:
+            await ctx.send(f"{msg} doesn't exist in bought watchlist")
+
     @commands.command(name="see")
     async def see(self, ctx):
         """view the watchlist"""
         msg = "```Current watchlist: \n"
         for x in self.tickers:
+            msg += x
+            msg += "\n"
+        msg += "\nCurrent bought: \n"
+        for x in self.bought:
             msg += x
             msg += "\n"
         msg += "```"
@@ -80,7 +114,7 @@ class Utils(commands.Cog):
 def setup(bot):
     bot.add_cog(Utils(bot))
 
-async def getAndProcessHistoryData15m(ticker, ctx):
+async def getAndProcessHistoryData(bought, ticker, ctx):
     tv = TvDatafeed()
     df = tv.get_hist(ticker, "IDX", interval=Interval.in_30_minute, n_bars= 1460)
     df.reset_index(inplace=True)
@@ -114,16 +148,19 @@ async def getAndProcessHistoryData15m(ticker, ctx):
     df1.ta.sma(length=30, append=True)
     df1.ta.sma(length=100, append=True)
 
-    buy_con1 = df1["SMA_30"].iloc[-1] >= df1["SMA_30"].iloc[-1] and df1["divergence"] > 0
+    buy_con1 = df1["SMA_30"].iloc[-1] >= df1["SMA_30"].iloc[-1] and df1["divergence"].iloc[-1] > 0
     buy_con2 = df1["close"].iloc[-1] < df1["open"].iloc[-1] and df1["close"].iloc[-1] < df1["SMA_30"].iloc[-1]
 
     sell_con1 = df1["close"].iloc[-1] < df1["SMA_30"].iloc[-1] and df1["divergence"].iloc[-1] < 0
     sell_con2 = df1["close"].iloc[-1] < df1["SMA_100"].iloc[-1]
 
+    if buy_con1:
+        await ctx.send(f"{ticker} Buy level 1")
     if buy_con1 and buy_con2:
-        ctx.send(f"{ticker} Buy " + os.environ['USER_MENTION'])
-    if sell_con1 or sell_con2:
-        ctx.send(f"{ticker} Sell "+ os.environ['USER_MENTION'])
+        await ctx.send(f"{ticker} Buy level 2! {os.environ['USER_MENTION']}")
+
+    if (sell_con1 or sell_con2) and ticker in bought:
+        await ctx.send(f"{ticker} Sell! {os.environ['USER_MENTION']}")
 
     
 
