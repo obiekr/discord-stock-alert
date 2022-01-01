@@ -25,10 +25,9 @@ class Utils(commands.Cog):
         await ctx.send(f"Pong!\nStockBot's latency: `{str(latency)}ms`\n{os.environ['CHANNEL_ID']} {os.environ['USER_MENTION']}")
 
     @commands.command(name="clr")
-    async def pure(self, ctx, limit:int):
+    async def clear(self, ctx, limit:int):
         """Clear message"""
-        channel = get(ctx.guild.channels, id=os.environ['CHANNEL_ID'])
-        await channel.purge(limit=limit)
+        await ctx.channel.purge(limit=limit)
     
     @commands.command(name="toggle")
     async def alert(self, ctx):
@@ -38,8 +37,8 @@ class Utils(commands.Cog):
             await ctx.send("alert is on: " + str(self.isSending))
             while self.isSending:
                 now = dt.datetime.now()
-                hour = 2 < now.hour < 8 
-                if now.minute % 1 == 0 and now.second < 1:
+                hour = 1 < now.hour < 8 
+                if hour and now.minute % 15 == 0 and now.second < 1:
                     # RUN THE SCRIPT HERE
                     # https://stackoverflow.com/questions/53486744/making-async-for-loops-in-python
                     looper = [getAndProcessHistoryData(self.bought, ticker, ctx) for ticker in self.tickers]
@@ -115,6 +114,7 @@ def setup(bot):
     bot.add_cog(Utils(bot))
 
 async def getAndProcessHistoryData(bought, ticker, ctx):
+    print(ticker, " passed")
     tv = TvDatafeed()
     df = tv.get_hist(ticker, "IDX", interval=Interval.in_30_minute, n_bars= 1460)
     df.reset_index(inplace=True)
@@ -148,8 +148,8 @@ async def getAndProcessHistoryData(bought, ticker, ctx):
     df1.ta.sma(length=30, append=True)
     df1.ta.sma(length=100, append=True)
 
-    buy_con1 = df1["SMA_30"].iloc[-1] >= df1["SMA_30"].iloc[-1] and df1["divergence"].iloc[-1] > 0
-    buy_con2 = df1["close"].iloc[-1] < df1["open"].iloc[-1] and df1["close"].iloc[-1] < df1["SMA_30"].iloc[-1]
+    buy_con1 = df1["SMA_30"].iloc[-1] >= df1["SMA_100"].iloc[-1] and df1["divergence"].iloc[-1] > 0
+    buy_con2 = df1["close"].iloc[-1] < df1["open"].iloc[-1] and df1["close"].iloc[-1] >= df1["SMA_30"].iloc[-1]
 
     sell_con1 = df1["close"].iloc[-1] < df1["SMA_30"].iloc[-1] and df1["divergence"].iloc[-1] < 0
     sell_con2 = df1["close"].iloc[-1] < df1["SMA_100"].iloc[-1]
