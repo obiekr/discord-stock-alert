@@ -37,7 +37,7 @@ class Utils(commands.Cog):
             await ctx.send("alert is on: " + str(self.isSending))
             while self.isSending:
                 now = dt.datetime.now()
-                hour = 1 < now.hour < 8 
+                hour = 1 <= now.hour <= 8 
                 if hour and now.minute % 15 == 0 and now.second < 1:
                     # RUN THE SCRIPT HERE
                     # https://stackoverflow.com/questions/53486744/making-async-for-loops-in-python
@@ -98,6 +98,8 @@ class Utils(commands.Cog):
     @commands.command(name="see")
     async def see(self, ctx):
         """view the watchlist"""
+        self.tickers.sort()
+        self.bought.sort()
         msg = "```Current watchlist: \n"
         for x in self.tickers:
             msg += x
@@ -109,6 +111,12 @@ class Utils(commands.Cog):
         msg += "```"
         await ctx.send(msg)
 
+    @commands.command(name="test")
+    async def test(self, ctx):
+        """Test getting the BBCA:IDX data from tradingview"""
+        tv = TvDatafeed()
+        df = tv.get_hist("BBCA", "IDX", interval=Interval.in_30_minute, n_bars= 10)
+        await ctx.send(f'BBCA Last close: {df["close"].iloc[-1]}')
 
 def setup(bot):
     bot.add_cog(Utils(bot))
@@ -154,13 +162,14 @@ async def getAndProcessHistoryData(bought, ticker, ctx):
     sell_con1 = df1["close"].iloc[-1] < df1["SMA_30"].iloc[-1] and df1["divergence"].iloc[-1] < 0
     sell_con2 = df1["close"].iloc[-1] < df1["SMA_100"].iloc[-1]
 
-    if buy_con1:
-        await ctx.send(f"{ticker} Buy level 1")
+    
     if buy_con1 and buy_con2:
-        await ctx.send(f"{ticker} Buy level 2! {os.environ['USER_MENTION']}")
+        await ctx.send(f"{ticker} Buy level 2! ({df1['close'].iloc[-1]}){os.environ['USER_MENTION']} ")
+    elif buy_con1:
+        await ctx.send(f"{ticker} Buy level 1")
 
     if (sell_con1 or sell_con2) and ticker in bought:
-        await ctx.send(f"{ticker} Sell! {os.environ['USER_MENTION']}")
+        await ctx.send(f"{ticker} Sell! ({df1['close'].iloc[-1]}) {os.environ['USER_MENTION']}")
 
     
 
